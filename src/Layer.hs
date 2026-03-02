@@ -1,16 +1,43 @@
 module Layer where
 
+import qualified Data.Bifunctor as Bifunctor (bimap)
+
 type Layer s -- input
            t -- gradient to pass to the layer below
            a -- output
            b -- gradient from the layer above
           = s -> (a, b -> t)
 
+type Layer2 a b = a -> (b, b -> a)
+
+compose2 :: Layer2 b c -> Layer2 a b -> Layer2 a c
+compose2 f g x = let (b, f') = g x
+                     (c, g') = f b
+                  in (c, f' . g')
+
 compose :: Layer a t c b -> Layer s u a t -> Layer s u c b
 compose f g x = let (gx, dg) = g x
                     (fgx, df) = f gx
                  in (fgx, dg . df)
 
+-- Split the input into two outputs
+-- The derivative is the sum of the output derivatives
+dup :: Num a => Layer2 a (a, a)
+dup a = ((a,a), uncurry (+))
+
+identity :: Layer2 a a
+identity a = (a, id)
+
+-- a-[f]-b
+--          ==> (a, c)--[ (f, g) ]--(b, d)
+-- c-[g]-d
+bimap :: Layer2 a b -> Layer2 c d -> Layer2 (a, c) (b,d)
+bimap f g (a, c) = let (b, da) = f a
+                       (d, dc) = g c
+                    in ((b, d), Bifunctor.bimap da dc)
+
+swap :: Layer2 (a,b) (b,a)
+swap (a,b)  = _1
 -- split :: Layer (s1, s2) (t1, t2) a b -- the binary operator
 --       -> Layer u v s1 t1
 --       -> Layer w x s2 t2
